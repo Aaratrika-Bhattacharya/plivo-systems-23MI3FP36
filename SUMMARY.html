@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Flaky Network - System Architecture</title>
+</head>
+<body>
+<h1>Flaky Network: Reliable Real-Time Streaming over UDP</h1>
+
+<h2>Architecture</h2>
+<p>
+The system consists of a sender and receiver communicating through a hostile
+UDP relay. The harness source provides one 160-byte frame every 20 ms to the
+sender. The sender adds protocol metadata and proactive redundancy before
+transmitting packets through the relay. The receiver processes arriving
+packets and delivers recovered frames to the harness player.
+</p>
+
+<h2>Sender Design</h2>
+<p>
+Each original frame is transmitted as a data packet containing a packet type,
+sequence number, and the original 160-byte payload. Frames are grouped into
+pairs. For every two data frames, the sender calculates the bitwise XOR of
+their payloads and transmits an additional parity packet.
+</p>
+
+<h2>Receiver Design</h2>
+<p>
+The receiver identifies packets by type and sequence number. Data packets are
+stored in an indexed frame buffer, allowing reordered packets to be processed
+correctly and duplicate packets to be ignored. Received data frames are
+forwarded to the player.
+</p>
+
+<h2>Loss Recovery</h2>
+<p>
+For each two-frame FEC group, the receiver stores the XOR parity packet.
+If one of the two data frames is missing while the other frame and parity
+packet are available, the missing payload is reconstructed by XORing the
+available payload with the parity payload. The reconstructed frame is then
+sent to the player.
+</p>
+
+<h2>Design Choices</h2>
+<p>
+Forward Error Correction was selected instead of retransmission because
+retransmission requires feedback and another traversal of the hostile network,
+which increases recovery latency. Proactive parity allows recovery immediately
+when sufficient packets reach the receiver.
+</p>
+
+<h2>Performance</h2>
+<p>
+The initial naive implementation suffered substantial deadline misses.
+A four-data-frame XOR group improved reliability but remained insufficient
+under the harsher network profile. Reducing the FEC group to two data frames
+plus one parity packet achieved a bandwidth overhead of approximately 1.55x
+and brought tested deadline misses below the required 1% at a 100 ms playout
+delay.
+</p>
+
+<h2>Limitations</h2>
+<p>
+The XOR scheme can recover only one missing data frame per FEC group.
+Severe burst losses may remove multiple required packets and prevent recovery.
+Packets arriving after the playout deadline also cannot prevent a deadline
+miss.
+</p>
+
+</body>
+</html>
